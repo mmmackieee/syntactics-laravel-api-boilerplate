@@ -1,82 +1,43 @@
 <?php
 
-namespace App\Services\Admin;
+namespace App\Services;
 
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
+use Illuminate\Support\Collection;
 
-class UserService
+class RoleService
 {
     /**
-     * Get all users with their roles.
+     * Get all roles with their permissions.
      */
     public function all(): Collection
     {
-        return User::with('roles')->get();
+        return Role::with('permissions')->get();
     }
 
     /**
-     * Find a user by ID with roles.
+     * Find a role by ID.
      */
-    public function find(int $id): User
+    public function find(int $id): Role
     {
-        return User::with('roles')->findOrFail($id);
+        return Role::with('permissions')->findOrFail($id);
     }
 
     /**
-     * Create a new user and optionally assign roles.
+     * Get all permissions.
      */
-    public function create(array $data): User
+    public function getAllPermissions(): Collection
     {
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-        ]);
-
-        if (!empty($data['roles'])) {
-            $user->syncRoles($data['roles']);
-        }
-
-        return $user->load('roles');
+        return Permission::all();
     }
 
     /**
-     * Update user info and roles.
+     * Assign permissions to a role.
      */
-    public function update(User $user, array $data): User
+    public function assignPermissions(Role $role, array $permissions): Role
     {
-        $user->update([
-            'name' => $data['name'],
-            'email' => $data['email'],
-        ]);
-
-        if (!empty($data['password'])) {
-            $user->update(['password' => Hash::make($data['password'])]);
-        }
-
-        if (isset($data['roles'])) {
-            $user->syncRoles($data['roles']);
-        }
-
-        return $user->load('roles');
-    }
-
-    /**
-     * Delete or deactivate the user.
-     */
-    public function delete(User $user): void
-    {
-        $user->delete(); // or soft delete if applicable
-    }
-
-    /**
-     * Return all roles for admin UI.
-     */
-    public function getAllRoles(): Collection
-    {
-        return Role::all();
+        $role->syncPermissions($permissions);
+        return $role->load('permissions');
     }
 }

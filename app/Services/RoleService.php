@@ -4,31 +4,20 @@ namespace App\Services;
 
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Illuminate\Support\Collection;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class RoleService
 {
-    /**
-     * Get all roles with their permissions.
-     */
-    public function all(): Collection
+    public function all()
     {
         return Role::with('permissions')->get();
     }
 
-    /**
-     * Get a specific role by ID with permissions.
-     */
-    public function find(int $id): Role
+    public function find($id)
     {
         return Role::with('permissions')->findOrFail($id);
     }
 
-    /**
-     * Create a new role and optionally assign permissions.
-     */
-    public function create(array $data): Role
+    public function create(array $data)
     {
         $role = Role::create(['name' => $data['name']]);
 
@@ -39,10 +28,7 @@ class RoleService
         return $role->load('permissions');
     }
 
-    /**
-     * Update an existing role's name and permissions.
-     */
-    public function update(Role $role, array $data): Role
+    public function update(Role $role, array $data)
     {
         $role->update(['name' => $data['name']]);
 
@@ -53,27 +39,12 @@ class RoleService
         return $role->load('permissions');
     }
 
-    /**
-     * Delete a role.
-     */
-    public function delete(Role $role): void
+    public function delete(Role $role)
     {
         $role->delete();
     }
 
-    /**
-     * Assign permissions to a role.
-     */
-    public function assignPermissions(Role $role, array $permissions): Role
-    {
-        $role->syncPermissions($permissions);
-        return $role->load('permissions');
-    }
-
-    /**
-     * Get all available permissions.
-     */
-    public function getAllPermissions(): Collection
+    public function getAllPermissions()
     {
         return Permission::all();
     }

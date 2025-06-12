@@ -1,52 +1,85 @@
 <?php
 
-namespace App\Services;
+namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use App\Services\RoleService;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-
-class RoleService
+class RoleController extends Controller
 {
-    public function all()
+    protected RoleService $roles;
+
+    public function __construct(RoleService $roles)
     {
-        return Role::with('permissions')->get();
+        $this->roles = $roles;
     }
 
-    public function find($id)
+    public function index()
     {
-        return Role::with('permissions')->findOrFail($id);
+        return response()->json([
+            'data' => $this->roles->all(),
+        ]);
     }
 
-    public function create(array $data)
+    public function store(Request $request)
     {
-        $role = Role::create(['name' => $data['name']]);
+        $data = $request->validate([
+            'name' => 'required|string|unique:roles,name',
+            'permissions' => 'array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
 
-        if (!empty($data['permissions'])) {
-            $role->syncPermissions($data['permissions']);
-        }
+        $role = $this->roles->create($data);
 
-        return $role->load('permissions');
+        return response()->json([
+            'message' => 'Role created successfully.',
+            'data' => $role,
+        ], 201);
     }
 
-    public function update(Role $role, array $data)
+    public function show($id)
     {
-        $role->update(['name' => $data['name']]);
+        $role = $this->roles->find($id);
 
-        if (isset($data['permissions'])) {
-            $role->syncPermissions($data['permissions']);
-        }
-
-        return $role->load('permissions');
+        return response()->json([
+            'data' => $role,
+        ]);
     }
 
-    public function delete(Role $role)
+    public function update(Request $request, $id)
     {
-        $role->delete();
+        $role = $this->roles->find($id);
+
+        $data = $request->validate([
+            'name' => 'required|string|unique:roles,name,' . $role->id,
+            'permissions' => 'array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
+
+        $updatedRole = $this->roles->update($role, $data);
+
+        return response()->json([
+            'message' => 'Role updated successfully.',
+            'data' => $updatedRole,
+        ]);
     }
 
-    public function getAllPermissions()
+    public function destroy($id)
     {
-        return Permission::all();
+        $role = $this->roles->find($id);
+
+        $this->roles->delete($role);
+
+        return response()->json([
+            'message' => 'Role deleted successfully.',
+        ]);
+    }
+
+    public function permissions()
+    {
+        return response()->json([
+            'data' => $this->roles->getAllPermissions(),
+        ]);
     }
 }
