@@ -14,8 +14,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Contracts\LoginViewResponse;
+use Laravel\Fortify\Contracts\RegisterViewResponse;
 use Laravel\Fortify\Contracts\ResetPasswordViewResponse;
+use Laravel\Fortify\Contracts\TwoFactorChallengeViewResponse;
+use Laravel\Fortify\Contracts\VerifyEmailViewResponse;
+use Laravel\Fortify\Contracts\RequestPasswordResetLinkViewResponse;
 use Laravel\Fortify\Fortify;
+
 class FortifyServiceProvider extends ServiceProvider
 {
     /**
@@ -23,14 +29,53 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(ResetPasswordViewResponse::class, ResetPasswordResponse::class, ["toResponse"]);
+        // Bind Fortify responses to return JSON for API usage
+        $this->app->bind(LoginViewResponse::class, function () {
+            return new class implements LoginViewResponse {
+                public function toResponse($request)
+                {
+                    return response()->json(['message' => 'Login view not available.'], 401);
+                }
+            };
+        });
 
-    // Do the same for other view contracts:
-    $this->app->bind(\Laravel\Fortify\Contracts\LoginViewResponse::class, fn () => abort(404));
-    $this->app->bind(\Laravel\Fortify\Contracts\RegisterViewResponse::class, fn () => abort(404));
-    $this->app->bind(\Laravel\Fortify\Contracts\RequestPasswordResetLinkViewResponse::class, fn () => abort(404));
-    $this->app->bind(\Laravel\Fortify\Contracts\VerifyEmailViewResponse::class, fn () => abort(404));
-    $this->app->bind(\Laravel\Fortify\Contracts\TwoFactorChallengeViewResponse::class, fn () => abort(404));
+        $this->app->bind(RegisterViewResponse::class, function () {
+            return new class implements RegisterViewResponse {
+                public function toResponse($request)
+                {
+                    return response()->json(['message' => 'Register view not available.'], 404);
+                }
+            };
+        });
+
+        $this->app->bind(VerifyEmailViewResponse::class, function () {
+            return new class implements VerifyEmailViewResponse {
+                public function toResponse($request)
+                {
+                    return response()->json(['message' => 'Email verification view not available.'], 200);
+                }
+            };
+        });
+
+        $this->app->bind(TwoFactorChallengeViewResponse::class, function () {
+            return new class implements TwoFactorChallengeViewResponse {
+                public function toResponse($request)
+                {
+                    return response()->json(['message' => '2FA challenge view not available.'], 200);
+                }
+            };
+        });
+
+        $this->app->bind(RequestPasswordResetLinkViewResponse::class, function () {
+            return new class implements RequestPasswordResetLinkViewResponse {
+                public function toResponse($request)
+                {
+                    return response()->json(['message' => 'Password reset request view not available.'], 404);
+                }
+            };
+        });
+
+        $this->app->bind(ResetPasswordViewResponse::class, ResetPasswordResponse::class);
     }
 
     /**
@@ -38,36 +83,30 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Use custom action classes
         Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
-        // ❌ No Blade views – we're using API responses
-        Fortify::loginView(fn() => abort(404));
-        Fortify::registerView(fn() => abort(404));
-        Fortify::requestPasswordResetLinkView(fn() => abort(404));
-        Fortify::resetPasswordView(fn() => abort(404));
-        Fortify::verifyEmailView(fn() => abort(404));
-        Fortify::twoFactorChallengeView(fn() => abort(404));
+        // Ignore Blade routes since this is API-based
+        Fortify::ignoreRoutes();
 
-        // ✅ Custom authentication logic using `Auth::attempt()`
+        // Custom authentication logic (for API)
         Fortify::authenticateUsing(function (Request $request) {
             $user = User::where('email', $request->email)->first();
 
-            if ($user && Hash::check($request->password, $user->password)) {
-                return $user;
-            }
-
-            return null;
+            return $user && Hash::check($request->password, $user->password) ? $user : null;
         });
 
-        // 🛡 Rate Limiting
+        // Rate limiting for login
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())) . '|' . $request->ip());
-            return Limit::perMinute(5)->by($throttleKey);
+            return Limit::perMinute(5)->by(
+                Str::lower($request->input(Fortify::username())) . '|' . $request->ip()
+            );
         });
 
+        // Rate limiting for 2FA
         RateLimiter::for('two-factor', function (Request $request) {
             return Limit::perMinute(5)->by($request->session()->get('login.id'));
         });

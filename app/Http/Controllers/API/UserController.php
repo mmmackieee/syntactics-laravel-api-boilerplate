@@ -4,9 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 
@@ -35,7 +37,7 @@ class UserController extends Controller
     {
         $user = app(CreateNewUser::class)->create($request->all());
         $token = $user->createToken('api-token')->plainTextToken;
-
+        $user->sendEmailVerificationNotification();
         return response()->json([
             'user' => $user,
             'token' => $token,
@@ -57,7 +59,6 @@ class UserController extends Controller
 
     public function reset_password(Request $request, $token)
     {
-        // dd($request->all(), $token);
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
@@ -100,9 +101,23 @@ class UserController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request)
     {
-        //
+        $user = Auth::user(); // or auth('sanctum')->user()
+
+        if (! $user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        app(UpdateUserProfileInformation::class)->update($user, $request);
+
+        // Ensure fresh is called on a valid model
+        $updatedUser = User::find($user->id);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => $updatedUser,
+        ]);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Actions\Fortify;
 
 use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Laravel\Fortify\Contracts\UpdatesUserProfileInformation;
@@ -12,14 +13,11 @@ class UpdateUserProfileInformation implements UpdatesUserProfileInformation
 {
     /**
      * Validate and update the given user's profile information.
-     *
-     * @param  array<string, string>  $input
      */
-    public function update(User $user, array $input): void
+    public function update(User $user, Request $request): void
     {
-        Validator::make($input, [
+        $validated = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
-
             'email' => [
                 'required',
                 'string',
@@ -29,27 +27,24 @@ class UpdateUserProfileInformation implements UpdatesUserProfileInformation
             ],
         ])->validateWithBag('updateProfileInformation');
 
-        if ($input['email'] !== $user->email &&
-            $user instanceof MustVerifyEmail) {
-            $this->updateVerifiedUser($user, $input);
+        if ($validated['email'] !== $user->email) {
+            $this->updateVerifiedUser($user, $validated);
         } else {
             $user->forceFill([
-                'name' => $input['name'],
-                'email' => $input['email'],
+                'name' => $validated['name'],
+                'email' => $validated['email'],
             ])->save();
         }
     }
 
     /**
      * Update the given verified user's profile information.
-     *
-     * @param  array<string, string>  $input
      */
-    protected function updateVerifiedUser(User $user, array $input): void
+    protected function updateVerifiedUser(User $user, array $validated): void
     {
         $user->forceFill([
-            'name' => $input['name'],
-            'email' => $input['email'],
+            'name' => $validated['name'],
+            'email' => $validated['email'],
             'email_verified_at' => null,
         ])->save();
 
